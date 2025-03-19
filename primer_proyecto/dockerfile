@@ -1,0 +1,27 @@
+# Usa una imagen base oficial de Python 
+FROM python:3.10
+
+# Establece el directorio de trabajo
+WORKDIR /app
+
+# Instala dependencias del sistema necesarias para MySQL
+RUN apt-get update && apt-get install -y \
+    gcc \
+    default-libmysqlclient-dev \
+    pkg-config
+
+# Copia los archivos del proyecto al contenedor
+COPY . .
+
+# Instala dependencias de Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Expone el puerto en el que correrá Django
+EXPOSE 8080
+
+# Agregar Pymysql como backend de MySQL (evita problemas con mysqlclient)
+RUN pip install pymysql && \
+    echo "import pymysql; pymysql.install_as_MySQLdb()" > /app/__init__.py
+
+# Comando por defecto para ejecutar la aplicación
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "primer_proyecto.wsgi:application"]

@@ -10,10 +10,45 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 import os
+from google.oauth2 import service_account
 from pathlib import Path
-
+import base64
 from dotenv import load_dotenv
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy 
+import pymysql
+from storages.backends.gcloud import GoogleCloudStorage
+import json
+from django.middleware.security import SecurityMiddleware
+from google.auth import default
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://code-crafters-app-531223854869.us-central1.run.app"
+]
+
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
+GOOGLE_APPLICATION_CREDENTIALS_JSON = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+if GOOGLE_APPLICATION_CREDENTIALS_JSON:
+    credentials_info = json.loads(
+        base64.b64decode(GOOGLE_APPLICATION_CREDENTIALS_JSON).decode("utf-8")
+    )
+    GS_CREDENTIALS = service_account.Credentials.from_service_account_info(credentials_info)
+else:
+    GS_CREDENTIALS = None
+
+class GoogleCloudStaticStorage(GoogleCloudStorage):
+    location = "static"
+
+class GoogleCloudMediaStorage(GoogleCloudStorage):
+    location = "media"
+
+pymysql.install_as_MySQLdb()
+
 
 load_dotenv()
 
@@ -24,7 +59,7 @@ LOGIN_URL = reverse_lazy('apps.blog_auth:iniciar_sesion')
 LOGIN_REDIRECT_URL = reverse_lazy('index')
 LOGOUT_REDIRECT_URL = reverse_lazy('index')
 
-
+PORT = os.environ.get('PORT', 8080)
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
@@ -32,9 +67,9 @@ LOGOUT_REDIRECT_URL = reverse_lazy('index')
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -46,6 +81,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'storages',
 
     #apps personalizadas
     'apps.post',
@@ -54,6 +90,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -61,6 +98,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 ROOT_URLCONF = 'primer_proyecto.urls'
 
@@ -91,13 +130,14 @@ USER_DB = os.getenv("USER_MYSQL")
 PASSWORD_DB =  os.getenv("PASSWORD_MYSQL")
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": NAME_DB,
-        "USER": USER_DB,
-        "PASSWORD": PASSWORD_DB,
-        "HOST": "localhost",
-        "PORT": "3306"
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'HOST': '/cloudsql/code-crafters-project-2025:us-central1:mi-db-instance',
+        #'HOST': 'localhost',
+        'USER': USER_DB,
+        'PASSWORD': PASSWORD_DB,
+        'NAME': NAME_DB,
+        'PORT': '3306',
     }
 }
 
@@ -135,14 +175,60 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = "staticfiles/"
+
+
+# Configuración de Cloud Storage
+GS_BUCKET_NAME = "bucket-28-02-2025"
+
+
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+
+
+# Configurar Google Cloud Storage
+
+
+
+
+
+STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
+
+MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
+
+
+
+# Configuración de archivos estáticos en Google Cloud Storage
+
+DEFAULT_FILE_STORAGE = "custom_storage.GoogleCloudMediaStorage" # Para archivos multimedia
+STATICFILES_STORAGE = "custom_storage.GoogleCloudStaticStorage" # Para archivos estáticos
+
+
+
+
+STATICFILES_DIRS = []  # Evita conflictos con archivos locales
+STORAGES = {
+    "default": {
+        "BACKEND": "custom_storage.GoogleCloudMediaStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "custom_storage.GoogleCloudStaticStorage",
+    },
+}
+
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+
+# Configurar Google Cloud Storage
+GS_PROJECT_ID = "code-crafters-project-2025"
+GS_DEFAULT_ACL = "publicRead"
+
+  
+ 
+
+# Rutas de archivos estáticos y multimedia
+
+# Directorios locales para archivos estáticos
